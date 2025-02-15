@@ -11,5 +11,17 @@ A simple tool to convert PNG to JPEG and JPEG to PNG.
 1. Select a PNG file and set the size → Convert to JPEG.
 2. Select a JPEG file → Convert back to PNG.
 
-## Installation
-Install the required library:
+## Installation  
+1. Install Python (if not already installed).  
+2. Install the required library:  
+   ```sh
+   pip install pillow
+   Run the program:
+python main.py
+
+##Requirements
+Python 3.x
+Pillow library
+
+##Credits
+Created by Sobhan Izadi.
