@@ -16,12 +16,13 @@ A simple tool to convert PNG to JPEG and JPEG to PNG.
 2. Install the required library:  
    ```sh
    pip install pillow
-   Run the program:
-python main.py
+
+##Run the program:
+-python main.py
 
 ##Requirements
-Python 3.x
-Pillow library
+-Python 3.x
+-Pillow library
 
 ##Credits
-Created by Sobhan Izadi.
+-Created by Sobhan Izadi.
