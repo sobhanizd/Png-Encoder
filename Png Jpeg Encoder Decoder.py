@@ -1,81 +1,80 @@
-import os
-from tkinter import Tk, Label, Button, Scale, filedialog, HORIZONTAL, messagebox
-from PIL import Image
+import cv2
+import numpy as np
+import tkinter as tk
+from tkinter import filedialog
+from tkinter import simpledialog
+from PIL import Image, ImageTk
 
-def select_png():
-    global png_file
-    png_file = filedialog.askopenfilename(filetypes=[("PNG files", "*.png")])
-    if png_file:
-        label_png.config(text=f"Selected: {os.path.basename(png_file)}")
-    else:
-        label_png.config(text="No file selected")
-
-def select_jpeg():
-    global jpeg_file
-    jpeg_file = filedialog.askopenfilename(filetypes=[("JPEG files", "*.jpeg;*.jpg")])
-    if jpeg_file:
-        label_jpeg.config(text=f"Selected: {os.path.basename(jpeg_file)}")
-    else:
-        label_jpeg.config(text="No file selected")
-
-def encode_png_to_jpeg():
-    if not png_file:
-        messagebox.showerror("Error", "No PNG file selected!")
+def compress_image():
+    file_path = filedialog.askopenfilename(filetypes=[("PNG files", "*.png")])
+    if not file_path:
         return
-    output_size_kb = size_slider.get()
-    output_file = filedialog.asksaveasfilename(defaultextension=".jpeg", filetypes=[("JPEG files", "*.jpeg;*.jpg")])
-    if not output_file:
+    
+    img = cv2.imread(file_path)
+    img_yuv = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
+    y, u, v = cv2.split(img_yuv)
+    
+    block_size = 32
+    height, width = y.shape
+    compressed_y = np.zeros_like(y)
+    
+    compression_rate = simpledialog.askinteger("Compression Rate", "Enter compression level (1-15):", minvalue=1, maxvalue=15)
+    if compression_rate is None:
         return
-    try:
-        img = Image.open(png_file)
-        if img.mode != "RGB":
-            img = img.convert("RGB")
-        quality = 95
-        while True:
-            img.save(output_file, "JPEG", quality=quality)
-            if os.path.getsize(output_file) <= output_size_kb * 1024 or quality <= 10:
-                break
-            quality -= 5
-        messagebox.showinfo("Success", f"Encoded to {os.path.basename(output_file)} with size {output_size_kb} KB")
-    except Exception as e:
-        messagebox.showerror("Error", f"Failed to encode PNG: {e}")
+    
+    a = 16 - compression_rate
+    for i in range(0, height, block_size):
+        for j in range(0, width, block_size):
+            block = y[i:i+block_size, j:j+block_size]
+            block_dct = cv2.dct(np.float32(block))
+            h, w = block_dct.shape
+            for m in range(min(a, h), h):
+                for n in range(min(a, w), w):  
+                    block_dct[m, n] = 0        
 
-def decode_jpeg_to_png():
-    if not jpeg_file:
-        messagebox.showerror("Error", "No JPEG file selected!")
+            compressed_y[i:i+block_size, j:j+block_size] = cv2.idct(block_dct)
+    
+    img_compressed = cv2.merge([compressed_y.astype(np.uint8), u, v])
+    image_array = np.array(img_compressed)
+    binary_data = img_compressed.tobytes()
+    
+    save_path = filedialog.asksaveasfilename(defaultextension=".jpg", filetypes=[("JPEG files", "*.jpg")])
+    if not save_path:
         return
-    output_file = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG files", "*.png")])
-    if not output_file:
+    
+    with open(save_path, 'wb') as bin_file:
+        bin_file.write(binary_data)
+    
+    img_decompressed = cv2.cvtColor(image_array.reshape((height, width, 3)), cv2.COLOR_YUV2BGR)
+    cv2.imwrite(save_path, img_decompressed)
+
+def decompress_image():
+    file_path = filedialog.askopenfilename(filetypes=[("JPG files", "*.jpg")])
+    if not file_path:
         return
-    try:
-        img = Image.open(jpeg_file)
-        img.save(output_file, "PNG")
-        messagebox.showinfo("Success", f"Decoded to {os.path.basename(output_file)}")
-    except Exception as e:
-        messagebox.showerror("Error", f"Failed to decode JPEG: {e}")
-root = Tk()
-root.title("PNG-JPEG Encoder/Decoder by Sobhan Izadi")
-root.geometry("400x450")
+    
+    with open(file_path, 'rb') as bin_file:
+        binary_data = bin_file.read()
+    
+    image_array = np.frombuffer(binary_data, dtype=np.uint8)
+    img = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+    
+    save_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG files", "*.png")])
+    if not save_path:
+        return
+    cv2.imwrite(save_path, img)
 
-png_file = None
-jpeg_file = None
+def create_ui():
+    root = tk.Tk()
+    root.title("Image Compressor")
+    root.geometry("300x200")
+    
+    btn_compress = tk.Button(root, text="Compress PNG", command=compress_image)
+    btn_compress.pack(pady=10)
+    
+    btn_decompress = tk.Button(root, text="Decompress JPG", command=decompress_image)
+    btn_decompress.pack(pady=10)
+    
+    root.mainloop()
 
-Label(root, text="Select PNG File for Encoding:").pack(pady=5)
-Button(root, text="Select PNG", command=select_png).pack()
-label_png = Label(root, text="No file selected", fg="gray")
-label_png.pack(pady=5)
-
-Label(root, text="Select Output Size (KB):").pack(pady=5)
-size_slider = Scale(root, from_=10, to=5000, orient=HORIZONTAL)
-size_slider.pack()
-
-Button(root, text="Encode PNG to JPEG", command=encode_png_to_jpeg).pack(pady=10)
-
-Label(root, text="Select JPEG File for Decoding:").pack(pady=5)
-Button(root, text="Select JPEG", command=select_jpeg).pack()
-label_jpeg = Label(root, text="No file selected", fg="gray")
-label_jpeg.pack(pady=5)
-
-Button(root, text="Decode JPEG to PNG", command=decode_jpeg_to_png).pack(pady=10)
-
-root.mainloop()
+create_ui()
